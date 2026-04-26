@@ -25,6 +25,19 @@ function stationBadge(p: Property) {
   return <span className="badge b-red">역세권 아님</span>;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function geocodeAddress(address: string, naverMaps: any): Promise<{ lat: number; lng: number; roadAddress: string; jibunAddress: string }> {
+  return new Promise((resolve, reject) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    naverMaps.Service.geocode({ query: address }, (status: any, response: any) => {
+      if (status !== naverMaps.Service.Status.OK) return reject(new Error('주소 검색 실패'));
+      const item = response?.v2?.addresses?.[0];
+      if (!item) return reject(new Error('검색 결과가 없습니다.'));
+      resolve({ lat: Number(item.y), lng: Number(item.x), roadAddress: item.roadAddress, jibunAddress: item.jibunAddress });
+    });
+  });
+}
+
 export default function AddressTab({ active }: { active: boolean }) {
   const { state, dispatch } = useApp();
   const { compute } = useDistanceMatrix();
@@ -36,7 +49,33 @@ export default function AddressTab({ active }: { active: boolean }) {
   const [memo, setMemo] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [origAddress, setOrigAddress] = useState('');
+
+  function resetForm() {
+    setName(''); setAddress(''); setMemo(''); setVisitMin('40'); setGroup('매물');
+  }
+
+  function startEdit(p: Property) {
+    setEditingId(p.id);
+    setName(p.name);
+    setAddress(p.address);
+    setOrigAddress(p.address);
+    setVisitMin(String(p.visitMin));
+    setGroup(p.group);
+    setMemo(p.memo);
+    document.getElementById('pane-input')?.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setOrigAddress('');
+    resetForm();
+  }
+
   async function geocodeAndAdd() {
+    if (editingId) { await saveEdit(); return; }
+
     if (!address.trim()) {
       dispatch({ type: 'ADD_TOAST', payload: '주소를 입력하세요.' });
       return;
@@ -48,17 +87,7 @@ export default function AddressTab({ active }: { active: boolean }) {
 
     setLoading(true);
     try {
-      const geo = await new Promise<{ lat: number; lng: number; roadAddress: string; jibunAddress: string }>(
-        (resolve, reject) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          window.naver.maps.Service.geocode({ query: address }, (status: any, response: any) => {
-            if (status !== window.naver.maps.Service.Status.OK) return reject(new Error('주소 검색 실패'));
-            const item = response?.v2?.addresses?.[0];
-            if (!item) return reject(new Error('검색 결과가 없습니다.'));
-            resolve({ lat: Number(item.y), lng: Number(item.x), roadAddress: item.roadAddress, jibunAddress: item.jibunAddress });
-          });
-        }
-      );
+      const geo = await geocodeAddress(address, window.naver.maps);
 
       const tempId = `temp_${Date.now()}`;
       const p: Property = {
@@ -119,7 +148,7 @@ export default function AddressTab({ active }: { active: boolean }) {
       }
 
       dispatch({ type: 'ADD_TOAST', payload: '주소가 추가되었습니다.' });
-      setName(''); setAddress(''); setMemo(''); setVisitMin('40'); setGroup('매물');
+      resetForm();
 
       const allPlaces = [...state.places, p];
       compute(allPlaces);
@@ -130,11 +159,101 @@ export default function AddressTab({ active }: { active: boolean }) {
     }
   }
 
+  async function saveEdit() {
+    const orig = state.places.find((x) => x.id === editingId);
+    if (!orig) return;
+    if (!address.trim()) {
+      dispatch({ type: 'ADD_TOAST', payload: '주소를 입력하세요.' });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      let lat = orig.lat, lng = orig.lng;
+      let roadAddress = orig.roadAddress, jibunAddress = orig.jibunAddress;
+
+      if (address.trim() !== origAddress && window.naver?.maps?.Service) {
+        const geo = await geocodeAddress(address, window.naver.maps);
+        lat = geo.lat; lng = geo.lng;
+        roadAddress = geo.roadAddress; jibunAddress = geo.jibunAddress;
+      }
+
+      const updatedFields = {
+        name: name.trim() || address,
+        address,
+        roadAddress,
+        jibunAddress,
+        lat, lng,
+        group,
+        visitMin: Number(visitMin) || 40,
+        memo,
+      };
+
+      const enriched = { ...orig, ...updatedFields };
+      const stations = window._stationData ?? getFallbackStations();
+      enrichStation(enriched as Property, stations, state.settings.stationRadius, state.settings.superRadius);
+
+      dispatch({
+        type: 'UPDATE_PLACE',
+        payload: {
+          id: editingId!,
+          data: {
+            ...updatedFields,
+            station: enriched.station,
+            stationLine: enriched.stationLine,
+            stationDistanceM: enriched.stationDistanceM,
+            stationWalkMin: enriched.stationWalkMin,
+            stationGrade: enriched.stationGrade,
+          },
+        },
+      });
+
+      if (orig._id) {
+        const res = await fetch(`/api/properties/${orig._id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...updatedFields,
+            stationRadius: state.settings.stationRadius,
+            superRadius: state.settings.superRadius,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const srv = data.property;
+          dispatch({
+            type: 'UPDATE_PLACE',
+            payload: {
+              id: editingId!,
+              data: {
+                station: srv.station,
+                stationLine: srv.stationLine,
+                stationDistanceM: srv.stationDistanceM,
+                stationWalkMin: srv.stationWalkMin,
+                stationGrade: srv.stationGrade,
+                stationLat: srv.stationLat,
+                stationLng: srv.stationLng,
+              },
+            },
+          });
+        }
+      }
+
+      dispatch({ type: 'ADD_TOAST', payload: '수정되었습니다.' });
+      cancelEdit();
+    } catch (e: unknown) {
+      dispatch({ type: 'ADD_TOAST', payload: (e instanceof Error ? e.message : '') || '수정 실패' });
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function deletePlace(id: string) {
     const p = state.places.find((x) => x.id === id);
     if (p?._id) {
       await fetch(`/api/properties/${p._id}`, { method: 'DELETE' });
     }
+    if (editingId === id) cancelEdit();
     dispatch({ type: 'DELETE_PLACE', payload: id });
   }
 
@@ -143,6 +262,7 @@ export default function AddressTab({ active }: { active: boolean }) {
       state.places.forEach((p) => {
         if (p._id) fetch(`/api/properties/${p._id}`, { method: 'DELETE' });
       });
+      cancelEdit();
       dispatch({ type: 'SET_PLACES', payload: [] });
     }
   }
@@ -159,16 +279,19 @@ export default function AddressTab({ active }: { active: boolean }) {
     dispatch({ type: 'ADD_TOAST', payload: '샘플 데이터를 불러왔습니다.' });
   }
 
+  const isEditing = editingId !== null;
+  const editingPlace = isEditing ? state.places.find((p) => p.id === editingId) : null;
+
   return (
     <section className={`pane${active ? ' on' : ''}`} id="pane-input">
-      <div className="card">
-        <h2>주소 추가</h2>
+      <div className={`card${isEditing ? ' editing' : ''}`}>
+        <h2>{isEditing ? `✏️ 매물 수정 — ${editingPlace?.name ?? ''}` : '주소 추가'}</h2>
         <div className="field">
           <label>매물명 / 별칭</label>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 강북구 번동 매물" />
         </div>
         <div className="field">
-          <label>주소</label>
+          <label>주소{isEditing && origAddress !== address ? ' (변경 시 재검색)' : ''}</label>
           <input
             value={address}
             onChange={(e) => setAddress(e.target.value)}
@@ -197,14 +320,22 @@ export default function AddressTab({ active }: { active: boolean }) {
         </div>
         <div className="btns">
           <button className="btn primary" onClick={geocodeAndAdd} disabled={loading}>
-            {loading ? '검색 중...' : '주소 입력'}
+            {loading
+              ? (isEditing ? '저장 중...' : '검색 중...')
+              : (isEditing ? '수정 완료' : '주소 입력')}
           </button>
-          <button className="btn ghost" onClick={() => { setName(''); setAddress(''); setMemo(''); setVisitMin('40'); setGroup('매물'); }}>
-            초기화
-          </button>
-          <button className="btn green" onClick={addSample}>샘플</button>
+          {isEditing ? (
+            <button className="btn ghost" onClick={cancelEdit}>취소</button>
+          ) : (
+            <>
+              <button className="btn ghost" onClick={resetForm}>초기화</button>
+              <button className="btn green" onClick={addSample}>샘플</button>
+            </>
+          )}
         </div>
-        <p className="hint" style={{ marginTop: 8 }}>주소 입력 시 Naver Geocoder로 좌표를 찾고 가까운 지하철역을 계산합니다.</p>
+        {!isEditing && (
+          <p className="hint" style={{ marginTop: 8 }}>주소 입력 시 Naver Geocoder로 좌표를 찾고 가까운 지하철역을 계산합니다.</p>
+        )}
       </div>
 
       <div className="card">
@@ -216,13 +347,14 @@ export default function AddressTab({ active }: { active: boolean }) {
           <p className="hint">아직 입력된 주소가 없습니다.</p>
         ) : (
           state.places.map((p, i) => (
-            <div key={p.id} className="addr-item">
+            <div key={p.id} className={`addr-item${editingId === p.id ? ' addr-editing' : ''}`}>
               <div className="addr-top">
                 <div>
                   <div className="addr-title">{i + 1}. {esc(p.name)}</div>
                   <div className="addr-sub">{esc(p.roadAddress || p.address)}</div>
                 </div>
                 <div className="mini-actions">
+                  <button className="mini edit" onClick={() => startEdit(p)}>수정</button>
                   <button className="mini del" onClick={() => deletePlace(p.id)}>삭제</button>
                 </div>
               </div>
