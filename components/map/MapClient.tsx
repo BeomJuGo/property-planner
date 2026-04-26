@@ -37,6 +37,7 @@ export default function MapClient() {
   const polylineRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const infoWindowRef = useRef<any>(null);
+  const openMarkerIdxRef = useRef<number | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
@@ -77,6 +78,7 @@ export default function MapClient() {
   function clearMarkers() {
     markersRef.current.forEach((m) => m.setMap(null));
     labelMarkersRef.current.forEach((m) => m.setMap(null));
+    openMarkerIdxRef.current = null;
     markersRef.current = [];
     labelMarkersRef.current = [];
     if (polylineRef.current) {
@@ -104,6 +106,11 @@ export default function MapClient() {
 
       window.naver.maps.Event.addListener(marker, 'click', () => {
         if (!infoWindowRef.current) return;
+        if (openMarkerIdxRef.current === i) {
+          infoWindowRef.current.close();
+          openMarkerIdxRef.current = null;
+          return;
+        }
         infoWindowRef.current.setContent(`<div style="background:#fff;border-radius:12px;padding:12px;box-shadow:0 4px 18px rgba(0,0,0,.25);font-size:12px;line-height:1.5;min-width:250px">
           <div style="font-weight:900;font-size:14px;margin-bottom:5px">${i + 1}. ${esc(p.name)}</div>
           <div>📍 ${esc(p.roadAddress || p.address)}</div>
@@ -113,6 +120,7 @@ export default function MapClient() {
           ${p.memo ? `<div style="color:#6b7280;margin-top:6px">${esc(p.memo)}</div>` : ''}
         </div>`);
         infoWindowRef.current.open(map, marker);
+        openMarkerIdxRef.current = i;
       });
 
       markersRef.current.push(marker);
