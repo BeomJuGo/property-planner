@@ -5,6 +5,9 @@ import { roundCoord } from '@/lib/utils';
 import { formatOdsay } from '@/lib/formatOdsay';
 import { DistancePair } from '@/lib/types';
 
+// ODsay API only accepts requests from Korean IP ranges
+export const preferredRegion = 'icn1';
+
 const BATCH_LIMIT = 5;
 
 interface PairRequest {

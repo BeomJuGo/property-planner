@@ -3,6 +3,9 @@ import { estimateTransitMin } from '@/lib/utils';
 import { distanceM } from '@/lib/haversine';
 import { formatOdsay } from '@/lib/formatOdsay';
 
+// ODsay API only accepts requests from Korean IP ranges
+export const preferredRegion = 'icn1';
+
 export async function POST(req: NextRequest) {
   const { fromLat, fromLng, toLat, toLng } = await req.json();
 
@@ -18,7 +21,6 @@ export async function POST(req: NextRequest) {
         signal: AbortSignal.timeout(8000),
       });
       const json = await res.json();
-      console.log('[ODsay]', JSON.stringify(json).slice(0, 300));
       const first = json.result?.path?.[0];
       if (first?.info?.totalTime) {
         return NextResponse.json({
