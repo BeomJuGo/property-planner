@@ -682,6 +682,11 @@ tr:last-child td {
   width: 0;
   min-width: 0;
   overflow: hidden;
+  box-shadow: none;
+}
+
+#app.sidebar-closed #map-container {
+  grid-column: 1 / -1;
 }
 
 /* Editing highlight */
