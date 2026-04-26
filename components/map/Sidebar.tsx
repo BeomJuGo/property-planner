@@ -11,6 +11,7 @@ import SettingsTab from './SettingsTab';
 
 interface Props {
   user: AuthUser;
+  onClose: () => void;
 }
 
 const TABS = [
@@ -21,7 +22,7 @@ const TABS = [
   { id: 'settings' as const, label: '⚙️ 설정' },
 ];
 
-export default function Sidebar({ user }: Props) {
+export default function Sidebar({ user, onClose }: Props) {
   const { state, dispatch } = useApp();
   const router = useRouter();
 
@@ -36,14 +37,14 @@ export default function Sidebar({ user }: Props) {
       <header id="hdr">
         <h1>🏠 매물 답사 플래너</h1>
         <p>주소 입력 → 지도 표시 → 역세권 판정 → 방문 계획 생성</p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8, marginBottom: 2 }}>
+          <button className="hdr-btn" onClick={onClose}>
+            플래너 숨기기 ✕
+          </button>
+        </div>
         <div className="hdr-user" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{user.email}</span>
-          <button
-            onClick={handleLogout}
-            style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 6, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}
-          >
-            로그아웃
-          </button>
+          <button className="hdr-btn" onClick={handleLogout}>로그아웃</button>
         </div>
       </header>
 
