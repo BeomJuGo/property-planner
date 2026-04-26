@@ -769,6 +769,7 @@ tr:last-child td {
   }
 
   #app.sidebar-expanded #map-container {
+    height: 0;
     overflow: hidden;
   }
 

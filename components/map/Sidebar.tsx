@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
 import { AuthUser } from '@/lib/types';
@@ -28,9 +28,66 @@ const TABS = [
 export default function Sidebar({ user, onClose, onExpand, onNormal }: Props) {
   const { state, dispatch } = useApp();
   const router = useRouter();
+  const dragHandleRef = useRef<HTMLDivElement>(null);
 
-  const touchStartY = useRef(0);
-  const touchStartH = useRef(0);
+  // 최신 콜백을 ref에 보관 — useEffect 내부 클로저가 stale해지는 것 방지
+  const cbRef = useRef({ onClose, onExpand, onNormal });
+  useEffect(() => { cbRef.current = { onClose, onExpand, onNormal }; });
+
+  useEffect(() => {
+    const handle = dragHandleRef.current;
+    if (!handle) return;
+
+    let startY = 0;
+    let startH = 0;
+
+    function onStart(e: TouchEvent) {
+      startY = e.touches[0].clientY;
+      startH = document.getElementById('sidebar')?.offsetHeight ?? 0;
+    }
+
+    function onMove(e: TouchEvent) {
+      e.preventDefault(); // passive:false 이므로 스크롤 차단
+      const dy = startY - e.touches[0].clientY;
+      const vh = window.innerHeight;
+      const newH = Math.max(40, Math.min(vh, startH + dy));
+      const sidebar = document.getElementById('sidebar');
+      const map = document.getElementById('map-container');
+      if (sidebar) sidebar.style.height = `${newH}px`;
+      if (map) map.style.height = `${vh - newH}px`;
+    }
+
+    function onEnd() {
+      const sidebar = document.getElementById('sidebar');
+      const map = document.getElementById('map-container');
+      const currentH = sidebar?.offsetHeight ?? 0;
+      const vh = window.innerHeight;
+
+      // 인라인 스타일 제거 — CSS 클래스가 다시 제어
+      if (sidebar) sidebar.style.height = '';
+      if (map) map.style.height = '';
+
+      if (currentH > vh * 0.7) {
+        cbRef.current.onExpand();
+      } else if (currentH <= vh * 0.25) {
+        cbRef.current.onClose();
+      } else {
+        cbRef.current.onNormal();
+      }
+
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+    }
+
+    handle.addEventListener('touchstart', onStart, { passive: true });
+    handle.addEventListener('touchmove', onMove, { passive: false });
+    handle.addEventListener('touchend', onEnd, { passive: true });
+
+    return () => {
+      handle.removeEventListener('touchstart', onStart);
+      handle.removeEventListener('touchmove', onMove);
+      handle.removeEventListener('touchend', onEnd);
+    };
+  }, []); // 마운트 시 1회만 — 콜백은 cbRef로 최신값 참조
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -38,44 +95,10 @@ export default function Sidebar({ user, onClose, onExpand, onNormal }: Props) {
     router.refresh();
   }
 
-  function onDragStart(e: React.TouchEvent) {
-    touchStartY.current = e.touches[0].clientY;
-    touchStartH.current = document.getElementById('sidebar')?.offsetHeight ?? 0;
-  }
-
-  function onDragMove(e: React.TouchEvent) {
-    const dy = touchStartY.current - e.touches[0].clientY;
-    const vh = window.innerHeight;
-    const newH = Math.max(0, Math.min(vh, touchStartH.current + dy));
-    const app = document.getElementById('app');
-    if (app) app.style.gridTemplateRows = `${vh - newH}px ${newH}px`;
-  }
-
-  function onDragEnd() {
-    const app = document.getElementById('app');
-    const currentH = document.getElementById('sidebar')?.offsetHeight ?? 0;
-    const vh = window.innerHeight;
-
-    if (app) app.style.gridTemplateRows = '';
-
-    if (currentH > vh * 0.7) {
-      onExpand();
-    } else if (currentH <= vh * 0.25) {
-      onClose();
-    } else {
-      onNormal();
-    }
-  }
-
   return (
     <aside id="sidebar">
       {/* 모바일 드래그 핸들 */}
-      <div
-        className="drag-handle"
-        onTouchStart={onDragStart}
-        onTouchMove={onDragMove}
-        onTouchEnd={onDragEnd}
-      />
+      <div ref={dragHandleRef} className="drag-handle" />
 
       <header id="hdr">
         <h1>🏠 매물 답사 플래너</h1>
