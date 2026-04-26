@@ -13,7 +13,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { properties, distanceMatrix, surveyDays, departurePoint, destination, startTime, visitMinDefault } = await req.json();
+  const { properties, distanceMatrix, surveyDays, departurePoint, destination, startTime, visitMinDefault, transportMode } = await req.json();
+  const modeLabel = transportMode === 'walking' ? '도보' : transportMode === 'driving' ? '차량(택시/자차)' : '대중교통(지하철/버스)';
 
   const props: Property[] = properties;
   const matrix: DistanceMatrix = distanceMatrix ?? {};
@@ -43,15 +44,16 @@ export async function POST(req: NextRequest) {
 
 답사 계획 작성 규칙:
 - 날짜별로 구분하여 작성
-- 지리적 인접성과 지하철 노선을 고려하여 같은 날 방문할 매물 묶기
+- 지리적 인접성을 고려하여 같은 날 방문할 매물 묶기
 - 각 이동 구간의 예상 소요 시간 명시
-- 역세권 매물 우선 대중교통 이용, 그렇지 않은 경우 택시/차량 필요 여부 표시
+- 이동 수단에 맞게 경로 설명 (지하철 노선명 또는 도로 경로)
 - 시간표 형식으로 출발~도착 시간 표기
 - 각 날의 총 소요 시간 요약 포함
 - 숙박지가 있으면 그 근처 매물을 해당 날에 배정`;
 
   const userPrompt = `답사 조건:
 - 총 답사 일수: ${surveyDays}일
+- 주요 이동 수단: ${modeLabel}
 - 출발지: ${departurePoint?.name ?? '미지정'}
 - 목적지/귀환지: ${destination?.name ?? '미지정'}
 - 시작 시각: ${startTime ?? '10:00'}
@@ -74,7 +76,7 @@ ${matrixText}
       { role: 'user', content: userPrompt },
     ],
     stream: true,
-    max_completion_tokens: 2000,
+    max_completion_tokens: 4000,
   });
 
   const encoder = new TextEncoder();

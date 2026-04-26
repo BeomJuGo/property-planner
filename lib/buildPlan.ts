@@ -3,13 +3,16 @@ import { distanceM } from './haversine';
 import { estimateTransitMin, timeToMin, minToTime } from './utils';
 import { pairKey } from './utils';
 
+export type TransportMode = 'walking' | 'transit' | 'driving';
+
 export function buildPlanSync(
   places: Property[],
   distanceMatrix: DistanceMatrix,
   startId: string,
   endId: string,
   startTime: string,
-  defaultVisitMin: number
+  defaultVisitMin: number,
+  mode: TransportMode = 'transit'
 ): PlanLeg[] {
   const start = places.find((p) => p.id === startId);
   const end = places.find((p) => p.id === endId);
@@ -37,8 +40,6 @@ export function buildPlanSync(
 
   let cursor = timeToMin(startTime);
   const legs: PlanLeg[] = [];
-  let totalTravel = 0;
-  let totalVisit = 0;
 
   for (let i = 0; i < ordered.length; i++) {
     const p = ordered[i];
@@ -54,10 +55,25 @@ export function buildPlanSync(
       let provider: string;
       let detail: string;
 
-      if (cached?.transitMinutes != null) {
-        minutes = cached.transitMinutes;
-        provider = 'ODsay';
-        detail = cached.transitDetail ?? `대중교통 ${minutes}분`;
+      if (cached) {
+        if (mode === 'walking' && cached.walkingMinutes != null) {
+          minutes = cached.walkingMinutes;
+          provider = '도보';
+          detail = `도보 ${minutes}분 · ${cached.walkingMeters?.toLocaleString() ?? '?'}m`;
+        } else if (mode === 'driving' && cached.drivingMinutes != null) {
+          minutes = cached.drivingMinutes;
+          provider = '차량';
+          detail = `차량 ${minutes}분`;
+        } else if (cached.transitMinutes != null) {
+          minutes = cached.transitMinutes;
+          provider = '대중교통';
+          detail = cached.transitDetail ?? `대중교통 ${minutes}분`;
+        } else {
+          const d = distanceM(prev.lat, prev.lng, p.lat, p.lng);
+          minutes = estimateTransitMin(d);
+          provider = '추정';
+          detail = `직선거리 ${Math.round(d).toLocaleString()}m 기반 추정`;
+        }
       } else {
         const d = distanceM(prev.lat, prev.lng, p.lat, p.lng);
         minutes = estimateTransitMin(d);
@@ -66,7 +82,6 @@ export function buildPlanSync(
       }
 
       cursor += minutes;
-      totalTravel += minutes;
       legs.push({ type: 'move', from: prev, to: p, minutes, provider, detail, arr: minToTime(cursor) });
     }
 
@@ -79,7 +94,6 @@ export function buildPlanSync(
     });
 
     cursor += visit;
-    totalVisit += visit;
   }
 
   return legs;

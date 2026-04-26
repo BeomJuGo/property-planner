@@ -36,6 +36,8 @@ export default function MapClient() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const polylineRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const routePolylineRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const infoWindowRef = useRef<any>(null);
   const openMarkerIdxRef = useRef<number | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -74,6 +76,34 @@ export default function MapClient() {
     renderMarkers();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.places, mapReady]);
+
+  useEffect(() => {
+    if (!mapReady) return;
+    const map = mapInstance.current;
+    if (!map || !window.naver?.maps) return;
+
+    if (routePolylineRef.current) {
+      routePolylineRef.current.setMap(null);
+      routePolylineRef.current = null;
+    }
+    if (!state.planRoute || state.planRoute.length < 2) return;
+
+    const ordered = state.planRoute
+      .map((id) => state.places.find((p) => p.id === id))
+      .filter(Boolean) as typeof state.places;
+    if (ordered.length < 2) return;
+
+    const path = ordered.map((p) => new window.naver.maps.LatLng(p.lat, p.lng));
+    routePolylineRef.current = new window.naver.maps.Polyline({
+      map,
+      path,
+      strokeColor: '#f97316',
+      strokeWeight: 5,
+      strokeOpacity: 0.9,
+      strokeStyle: 'solid',
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.planRoute, state.places, mapReady]);
 
   function clearMarkers() {
     markersRef.current.forEach((m) => m.setMap(null));

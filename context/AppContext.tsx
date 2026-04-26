@@ -18,6 +18,7 @@ interface AppState {
   activeTab: TabId;
   isLoading: boolean;
   toasts: Toast[];
+  planRoute: string[] | null;
 }
 
 type Action =
@@ -32,7 +33,8 @@ type Action =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_SETTINGS'; payload: Partial<AppSettings> }
   | { type: 'ADD_TOAST'; payload: string }
-  | { type: 'REMOVE_TOAST'; payload: string };
+  | { type: 'REMOVE_TOAST'; payload: string }
+  | { type: 'SET_PLAN_ROUTE'; payload: string[] | null };
 
 const defaultSettings: AppSettings = {
   stationRadius: 1000,
@@ -75,6 +77,8 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case 'REMOVE_TOAST':
       return { ...state, toasts: state.toasts.filter((t) => t.id !== action.payload) };
+    case 'SET_PLAN_ROUTE':
+      return { ...state, planRoute: action.payload };
     default:
       return state;
   }
@@ -102,6 +106,7 @@ export function AppProvider({ children, initialPlaces = [], initialUser = null }
     activeTab: 'input',
     isLoading: false,
     toasts: [],
+    planRoute: null,
   });
 
   return <AppContext.Provider value={{ state, dispatch }}>{children}</AppContext.Provider>;
