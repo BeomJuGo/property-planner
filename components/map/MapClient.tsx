@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Script from 'next/script';
 import { useApp } from '@/context/AppContext';
 import { Property } from '@/lib/types';
+import { mergeStationRows } from '@/lib/stations';
 
 declare global {
   interface Window {
@@ -37,6 +38,17 @@ export default function MapClient() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const infoWindowRef = useRef<any>(null);
   const [mapReady, setMapReady] = useState(false);
+
+  useEffect(() => {
+    fetch('/stations.json')
+      .then((r) => r.json())
+      .then((json) => {
+        const rows = Array.isArray(json.DATA) ? json.DATA : Array.isArray(json) ? json : [];
+        const stations = mergeStationRows(rows);
+        if (stations.length) window._stationData = stations;
+      })
+      .catch(() => {});
+  }, []);
 
   function initMap() {
     if (!mapRef.current || typeof window === 'undefined' || !window.naver?.maps) return;

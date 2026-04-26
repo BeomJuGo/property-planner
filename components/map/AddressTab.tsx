@@ -98,7 +98,24 @@ export default function AddressTab({ active }: { active: boolean }) {
 
       if (res.ok) {
         const data = await res.json();
-        dispatch({ type: 'UPDATE_PLACE', payload: { id: tempId, data: { _id: data.property._id, id: data.property.id } } });
+        const srv = data.property;
+        dispatch({
+          type: 'UPDATE_PLACE',
+          payload: {
+            id: tempId,
+            data: {
+              _id: srv._id,
+              id: srv.id,
+              station: srv.station,
+              stationLine: srv.stationLine,
+              stationDistanceM: srv.stationDistanceM,
+              stationWalkMin: srv.stationWalkMin,
+              stationGrade: srv.stationGrade,
+              stationLat: srv.stationLat,
+              stationLng: srv.stationLng,
+            },
+          },
+        });
       }
 
       dispatch({ type: 'ADD_TOAST', payload: '주소가 추가되었습니다.' });
