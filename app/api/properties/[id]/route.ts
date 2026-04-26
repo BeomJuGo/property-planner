@@ -3,6 +3,7 @@ import { ObjectId } from 'mongodb';
 import { getDb } from '@/lib/mongodb';
 import { enrichStation } from '@/lib/enrichStation';
 import { mergeStationRows } from '@/lib/stations';
+import { fetchStationWalkTime } from '@/lib/fetchStationWalk';
 import { Property } from '@/lib/types';
 import { readFileSync } from 'fs';
 import path from 'path';
@@ -76,6 +77,17 @@ export async function PUT(
   };
 
   enrichStation(p as Property, stations, stationRadius, superRadius);
+
+  if ((p as Property).stationLat != null && (p as Property).stationLng != null) {
+    const walk = await fetchStationWalkTime(p.lat, p.lng, (p as Property).stationLat!, (p as Property).stationLng!);
+    if (walk) {
+      p.stationWalkMin = walk.minutes;
+      p.stationDistanceM = walk.meters;
+      if (p.stationDistanceM <= superRadius) p.stationGrade = '초역세권';
+      else if (p.stationDistanceM <= stationRadius) p.stationGrade = '역세권';
+      else p.stationGrade = '역세권 아님';
+    }
+  }
 
   const db = await getDb();
   const result = await db.collection('properties').findOneAndUpdate(
