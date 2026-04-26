@@ -15,16 +15,21 @@ interface Props {
 export default function MapPage({ user, initialProperties }: Props) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
+  function toggle(next: boolean) {
+    setSidebarOpen(next);
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+  }
+
   return (
     <AppProvider initialPlaces={initialProperties} initialUser={user}>
       <div id="app" className={sidebarOpen ? '' : 'sidebar-closed'}>
-        <Sidebar user={user} onClose={() => setSidebarOpen(false)} />
+        <Sidebar user={user} onClose={() => toggle(false)} />
         <main id="map-container">
           <MapClient />
           {!sidebarOpen && (
             <button
               className="sidebar-toggle"
-              onClick={() => setSidebarOpen(true)}
+              onClick={() => toggle(true)}
               title="플래너 표시"
             >
               ☰
