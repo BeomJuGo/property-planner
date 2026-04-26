@@ -30,13 +30,25 @@ export async function POST(req: NextRequest) {
       const key = pairKey(a.lat, a.lng, b.lat, b.lng);
       const d = matrix[key];
       if (d) {
-        matrixRows.push(`${a.name} ↔ ${b.name}: 도보 ${d.walkingMinutes ?? '?'}분/${d.walkingMeters ?? '?'}m, 차량 ${d.drivingMinutes ?? '?'}분, 대중교통 ${d.transitMinutes ?? '?'}분`);
+        let primary = '';
+        if (transportMode === 'walking') {
+          primary = `★도보 ${d.walkingMinutes ?? '?'}분(${d.walkingMeters ?? '?'}m)`;
+        } else if (transportMode === 'driving') {
+          primary = `★차량 ${d.drivingMinutes ?? '?'}분`;
+        } else {
+          primary = `★대중교통 ${d.transitMinutes ?? '?'}분`;
+        }
+        const others: string[] = [];
+        if (transportMode !== 'walking') others.push(`도보 ${d.walkingMinutes ?? '?'}분`);
+        if (transportMode !== 'driving') others.push(`차량 ${d.drivingMinutes ?? '?'}분`);
+        if (transportMode !== 'transit') others.push(`대중교통 ${d.transitMinutes ?? '?'}분`);
+        matrixRows.push(`${a.name} ↔ ${b.name}: ${primary} / ${others.join(', ')}`);
       }
     }
   }
 
   const matrixText = matrixRows.length > 0
-    ? matrixRows.slice(0, 30).join('\n')
+    ? matrixRows.join('\n')
     : '(거리 정보 없음)';
 
   const systemPrompt = `당신은 한국 부동산 매물 답사 일정을 짜주는 전문가입니다.

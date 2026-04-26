@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { AppProvider } from '@/context/AppContext';
-import { Property, AuthUser } from '@/lib/types';
+import { Property, AuthUser, DistanceMatrix } from '@/lib/types';
 import MapClient from './MapClient';
 import Sidebar from './Sidebar';
 import ToastContainer from './ToastContainer';
@@ -10,11 +10,12 @@ import ToastContainer from './ToastContainer';
 interface Props {
   user: AuthUser;
   initialProperties: Property[];
+  initialMatrix: DistanceMatrix;
 }
 
 export type SidebarState = 'normal' | 'closed' | 'expanded';
 
-export default function MapPage({ user, initialProperties }: Props) {
+export default function MapPage({ user, initialProperties, initialMatrix }: Props) {
   const [sidebarState, setSidebarState] = useState<SidebarState>('normal');
 
   function applyState(next: SidebarState) {
@@ -27,7 +28,7 @@ export default function MapPage({ user, initialProperties }: Props) {
     sidebarState === 'expanded' ? 'sidebar-expanded' : '';
 
   return (
-    <AppProvider initialPlaces={initialProperties} initialUser={user}>
+    <AppProvider initialPlaces={initialProperties} initialUser={user} initialMatrix={initialMatrix}>
       <div id="app" className={appClass}>
         <Sidebar
           user={user}

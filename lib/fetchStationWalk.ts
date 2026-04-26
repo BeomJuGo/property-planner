@@ -1,4 +1,37 @@
-export async function fetchStationWalkTime(
+import { distanceM } from './haversine';
+
+async function fetchNaverWalking(
+  fromLat: number, fromLng: number,
+  toLat: number, toLng: number,
+): Promise<{ minutes: number; meters: number } | null> {
+  const clientId = process.env.NAVER_MAP_CLIENT_ID;
+  const clientSecret = process.env.NAVER_MAP_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return null;
+
+  try {
+    const url =
+      `https://naveropenapi.apigw.ntruss.com/map-direction-15/v1/walking` +
+      `?start=${fromLng},${fromLat}&goal=${toLng},${toLat}`;
+    const res = await fetch(url, {
+      headers: {
+        'X-NCP-APIGW-API-KEY-ID': clientId,
+        'X-NCP-APIGW-API-KEY': clientSecret,
+      },
+      signal: AbortSignal.timeout(5000),
+    });
+    const json = await res.json();
+    const summary = json.route?.trafast?.[0]?.summary;
+    if (summary?.duration != null) {
+      return {
+        minutes: Math.max(1, Math.round(summary.duration / 60000)),
+        meters: Math.round(summary.distance),
+      };
+    }
+  } catch {}
+  return null;
+}
+
+async function fetchTmapWalking(
   fromLat: number, fromLng: number,
   toLat: number, toLng: number,
 ): Promise<{ minutes: number; meters: number } | null> {
@@ -29,8 +62,24 @@ export async function fetchStationWalkTime(
         meters: Math.round(props.totalDistance),
       };
     }
-    return null;
-  } catch {
-    return null;
-  }
+  } catch {}
+  return null;
+}
+
+export async function fetchStationWalkTime(
+  fromLat: number, fromLng: number,
+  toLat: number, toLng: number,
+): Promise<{ minutes: number; meters: number } | null> {
+  // Naver 도보 API 우선 시도
+  const naver = await fetchNaverWalking(fromLat, fromLng, toLat, toLng);
+  if (naver) return naver;
+
+  // TMAP fallback
+  const tmap = await fetchTmapWalking(fromLat, fromLng, toLat, toLng);
+  if (tmap) return tmap;
+
+  // 직선거리 추정 (둘 다 키 없을 때)
+  const d = distanceM(fromLat, fromLng, toLat, toLng);
+  if (d === 0) return null;
+  return { minutes: Math.max(1, Math.round(d / 75)), meters: Math.round(d) };
 }

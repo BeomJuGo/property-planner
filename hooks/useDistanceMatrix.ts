@@ -39,6 +39,9 @@ export function useDistanceMatrix() {
         return;
       }
 
+      // 현재 matrix 스냅샷 + 새로 계산된 데이터를 누적해 마지막에 한 번만 DB 저장
+      const accumulated: DistanceMatrix = {};
+
       let offset = 0;
       while (offset < remaining.length) {
         const batch = remaining.slice(offset, offset + 5);
@@ -64,11 +67,26 @@ export function useDistanceMatrix() {
               };
             });
             dispatch({ type: 'MERGE_MATRIX', payload: update });
+            Object.assign(accumulated, update);
           }
         } catch {
           // continue on error
         }
         offset += 5;
+      }
+
+      // 새로 계산된 데이터가 있으면 기존 + 신규 합쳐서 DB에 저장
+      if (Object.keys(accumulated).length > 0) {
+        const fullMatrix: DistanceMatrix = { ...state.distanceMatrix, ...accumulated };
+        try {
+          await fetch('/api/matrix', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ matrix: fullMatrix }),
+          });
+        } catch {
+          // DB 저장 실패해도 UI는 정상 동작
+        }
       }
 
       computingRef.current = false;

@@ -1,8 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { buildPlanSync, TransportMode } from '@/lib/buildPlan';
+import { Property } from '@/lib/types';
+
+const STORAGE_KEY = 'property-planner:ai-plan';
 
 const MODE_LABELS: Record<TransportMode, string> = {
   transit: '🚇 대중교통',
@@ -22,11 +25,45 @@ export default function AiPlanTab({ active }: { active: boolean }) {
   const [error, setError] = useState('');
   const [routeShown, setRouteShown] = useState(false);
   const [totalTime, setTotalTime] = useState<{ travel: number; visit: number } | null>(null);
+  const [visitOverrides, setVisitOverrides] = useState<Record<string, number>>({});
+
+  // 새로고침 후 저장된 계획 복원
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (saved.plan) setPlan(saved.plan);
+      if (saved.totalTime) setTotalTime(saved.totalTime);
+      if (saved.transportMode) setTransportMode(saved.transportMode);
+      if (saved.visitOverrides) setVisitOverrides(saved.visitOverrides);
+    } catch {}
+  }, []);
+
+  // 계획이 생성/업데이트될 때마다 저장
+  useEffect(() => {
+    if (!plan) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ plan, totalTime, transportMode, visitOverrides }));
+    } catch {}
+  }, [plan, totalTime, transportMode, visitOverrides]);
+
+  function getVisitMin(p: Property): number {
+    return visitOverrides[p.id] ?? p.visitMin ?? state.settings.defaultVisitMin;
+  }
+
+  function setVisitOverride(id: string, val: number) {
+    setVisitOverrides((prev) => ({ ...prev, [id]: val }));
+  }
 
   function calcRouteAndTime() {
     const startPlace = state.places.find((p) => p.group === '출발지');
+    const placesWithOverrides = state.places.map((p) => ({
+      ...p,
+      visitMin: getVisitMin(p),
+    }));
     const legs = buildPlanSync(
-      state.places,
+      placesWithOverrides,
       state.distanceMatrix,
       startPlace?.id ?? '',
       startPlace?.id ?? '',
@@ -60,17 +97,26 @@ export default function AiPlanTab({ active }: { active: boolean }) {
     setLoading(true);
     setError('');
     setPlan('');
+    setTotalTime(null);
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    dispatch({ type: 'SET_PLAN_ROUTE', payload: null });
+    setRouteShown(false);
 
     const startPlace = state.places.find((p) => p.group === '출발지');
     const departure = { name: departureName || startPlace?.name || '미지정', lat: startPlace?.lat ?? 0, lng: startPlace?.lng ?? 0 };
     const destination = { name: destinationName || startPlace?.name || '미지정', lat: startPlace?.lat ?? 0, lng: startPlace?.lng ?? 0 };
 
     try {
+      const propsWithOverrides = state.places.map((p) => ({
+        ...p,
+        visitMin: getVisitMin(p),
+      }));
+
       const res = await fetch('/api/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          properties: state.places,
+          properties: propsWithOverrides,
           distanceMatrix: state.distanceMatrix,
           surveyDays: Number(surveyDays) || 2,
           departurePoint: departure,
@@ -144,6 +190,32 @@ export default function AiPlanTab({ active }: { active: boolean }) {
             ))}
           </div>
         </div>
+        {state.places.filter((p) => p.group !== '출발지' && p.group !== '숙박지').length > 0 && (
+          <div className="field">
+            <label>매물별 답사 시간 (분)</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+              {state.places
+                .filter((p) => p.group !== '출발지' && p.group !== '숙박지')
+                .map((p) => (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
+                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>
+                      {p.name}
+                    </span>
+                    <input
+                      type="number"
+                      min="5"
+                      max="240"
+                      step="5"
+                      value={getVisitMin(p)}
+                      onChange={(e) => setVisitOverride(p.id, Number(e.target.value))}
+                      style={{ width: 64, textAlign: 'center' }}
+                    />
+                    <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>분</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
         <div className="field">
           <label>출발지</label>
           <input value={departureName} onChange={(e) => setDepartureName(e.target.value)} placeholder="비워두면 출발지 분류 장소 사용" />

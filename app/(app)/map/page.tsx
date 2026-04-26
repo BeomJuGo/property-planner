@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { verifyToken, COOKIE_NAME } from '@/lib/auth';
 import { getDb } from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
-import { Property } from '@/lib/types';
+import { Property, DistanceMatrix } from '@/lib/types';
 import MapPage from '@/components/map/MapPage';
 import { AuthUser } from '@/lib/types';
 
@@ -18,13 +18,16 @@ export default async function MapRoute() {
   const user: AuthUser = { id: payload.userId, email: payload.email };
 
   let initialProperties: Property[] = [];
+  let initialMatrix: DistanceMatrix = {};
+
   try {
     const db = await getDb();
-    const docs = await db
-      .collection('properties')
-      .find({ userId: new ObjectId(payload.userId) })
-      .sort({ createdAt: 1 })
-      .toArray();
+    const uid = new ObjectId(payload.userId);
+
+    const [docs, matrixDoc] = await Promise.all([
+      db.collection('properties').find({ userId: uid }).sort({ createdAt: 1 }).toArray(),
+      db.collection('distance_matrix').findOne({ userId: uid }),
+    ]);
 
     initialProperties = docs.map((doc) => ({
       _id: doc._id.toHexString(),
@@ -48,9 +51,11 @@ export default async function MapRoute() {
       stationGrade: doc.stationGrade ?? '판정 불가',
       createdAt: doc.createdAt?.toISOString(),
     }));
+
+    initialMatrix = (matrixDoc?.matrix as DistanceMatrix) ?? {};
   } catch {
-    // continue with empty list if DB fails
+    // continue with empty data if DB fails
   }
 
-  return <MapPage user={user} initialProperties={initialProperties} />;
+  return <MapPage user={user} initialProperties={initialProperties} initialMatrix={initialMatrix} />;
 }

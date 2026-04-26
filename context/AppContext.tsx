@@ -1,7 +1,26 @@
 'use client';
 
-import { createContext, useContext, useReducer, ReactNode } from 'react';
+import { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
 import { Property, DistanceMatrix, AuthUser, AppSettings } from '@/lib/types';
+
+const SETTINGS_KEY = 'property-planner:settings';
+
+function loadSettings(): AppSettings {
+  const defaults: AppSettings = {
+    stationRadius: 1000,
+    superRadius: 500,
+    defaultVisitMin: 40,
+    startTime: '10:00',
+  };
+  if (typeof window === 'undefined') return defaults;
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return defaults;
+    return { ...defaults, ...JSON.parse(raw) };
+  } catch {
+    return defaults;
+  }
+}
 
 type TabId = 'input' | 'plan' | 'distances' | 'aiplan' | 'settings';
 
@@ -36,12 +55,6 @@ type Action =
   | { type: 'REMOVE_TOAST'; payload: string }
   | { type: 'SET_PLAN_ROUTE'; payload: string[] | null };
 
-const defaultSettings: AppSettings = {
-  stationRadius: 1000,
-  superRadius: 500,
-  defaultVisitMin: 40,
-  startTime: '10:00',
-};
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -95,19 +108,27 @@ interface AppProviderProps {
   children: ReactNode;
   initialPlaces?: Property[];
   initialUser?: AuthUser | null;
+  initialMatrix?: DistanceMatrix;
 }
 
-export function AppProvider({ children, initialPlaces = [], initialUser = null }: AppProviderProps) {
+export function AppProvider({ children, initialPlaces = [], initialUser = null, initialMatrix = {} }: AppProviderProps) {
   const [state, dispatch] = useReducer(reducer, {
     places: initialPlaces,
-    distanceMatrix: {},
+    distanceMatrix: initialMatrix,
     user: initialUser,
-    settings: defaultSettings,
+    settings: loadSettings(),
     activeTab: 'input',
     isLoading: false,
     toasts: [],
     planRoute: null,
   });
+
+  // 설정이 바뀔 때마다 localStorage에 저장
+  useEffect(() => {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings));
+    } catch {}
+  }, [state.settings]);
 
   return <AppContext.Provider value={{ state, dispatch }}>{children}</AppContext.Provider>;
 }
