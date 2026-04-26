@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
         signal: AbortSignal.timeout(8000),
       });
       const json = await res.json();
+      console.log('[ODsay]', JSON.stringify(json).slice(0, 300));
       const first = json.result?.path?.[0];
       if (first?.info?.totalTime) {
         return NextResponse.json({
