@@ -74,7 +74,7 @@ ${matrixText}
       { role: 'user', content: userPrompt },
     ],
     stream: true,
-    max_tokens: 2000,
+    max_completion_tokens: 2000,
   });
 
   const encoder = new TextEncoder();
