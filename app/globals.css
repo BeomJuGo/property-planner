@@ -673,20 +673,22 @@ tr:last-child td {
   background: #f3f4f6;
 }
 
-/* Sidebar closed (PC) */
-#app.sidebar-closed {
-  grid-template-columns: 0 1fr;
-}
-
+/* Sidebar closed — 공통 */
 #app.sidebar-closed #sidebar {
-  width: 0;
-  min-width: 0;
   overflow: hidden;
   box-shadow: none;
 }
 
-#app.sidebar-closed #map-container {
-  grid-column: 1 / -1;
+/* Sidebar closed — PC 전용 */
+@media (min-width: 821px) {
+  #app.sidebar-closed {
+    grid-template-columns: 0 1fr;
+  }
+
+  #app.sidebar-closed #sidebar {
+    width: 0;
+    min-width: 0;
+  }
 }
 
 /* Editing highlight */
