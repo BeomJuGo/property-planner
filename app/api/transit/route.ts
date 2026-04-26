@@ -25,9 +25,8 @@ export async function POST(req: NextRequest) {
       });
       const json = await res.json();
       const itinerary = json.metaData?.plan?.itineraries?.[0];
-      console.log('[TMAP transit]', res.status, 'itineraries:', json.metaData?.plan?.itineraries?.length, 'duration:', itinerary?.duration, 'err:', JSON.stringify(json.error ?? json.result ?? '').slice(0, 200));
-      if (itinerary?.duration != null) {
-        const minutes = Math.round(itinerary.duration / 60);
+      if (itinerary?.totalTime != null) {
+        const minutes = Math.round(itinerary.totalTime / 60);
         const legs: string[] = (itinerary.legs ?? [])
           .filter((l: { mode: string }) => l.mode !== 'WALK')
           .map((l: { mode: string; route?: string; routeColor?: string }) =>

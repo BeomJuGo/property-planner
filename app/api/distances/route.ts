@@ -89,8 +89,8 @@ async function fetchTransit(p: PairRequest): Promise<{ minutes: number; detail: 
       });
       const json = await res.json();
       const itinerary = json.metaData?.plan?.itineraries?.[0];
-      if (itinerary?.duration != null) {
-        const minutes = Math.round(itinerary.duration / 60);
+      if (itinerary?.totalTime != null) {
+        const minutes = Math.round(itinerary.totalTime / 60);
         const legs: string[] = (itinerary.legs ?? [])
           .filter((l: { mode: string }) => l.mode !== 'WALK')
           .map((l: { mode: string; route?: string }) =>
