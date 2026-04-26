@@ -12,24 +12,35 @@ interface Props {
   initialProperties: Property[];
 }
 
-export default function MapPage({ user, initialProperties }: Props) {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+export type SidebarState = 'normal' | 'closed' | 'expanded';
 
-  function toggle(next: boolean) {
-    setSidebarOpen(next);
+export default function MapPage({ user, initialProperties }: Props) {
+  const [sidebarState, setSidebarState] = useState<SidebarState>('normal');
+
+  function applyState(next: SidebarState) {
+    setSidebarState(next);
     setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
   }
 
+  const appClass =
+    sidebarState === 'closed' ? 'sidebar-closed' :
+    sidebarState === 'expanded' ? 'sidebar-expanded' : '';
+
   return (
     <AppProvider initialPlaces={initialProperties} initialUser={user}>
-      <div id="app" className={sidebarOpen ? '' : 'sidebar-closed'}>
-        <Sidebar user={user} onClose={() => toggle(false)} />
+      <div id="app" className={appClass}>
+        <Sidebar
+          user={user}
+          onClose={() => applyState('closed')}
+          onExpand={() => applyState('expanded')}
+          onNormal={() => applyState('normal')}
+        />
         <main id="map-container">
           <MapClient />
-          {!sidebarOpen && (
+          {sidebarState === 'closed' && (
             <button
               className="sidebar-toggle"
-              onClick={() => toggle(true)}
+              onClick={() => applyState('normal')}
               title="플래너 표시"
             >
               ☰

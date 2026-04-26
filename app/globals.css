@@ -702,6 +702,11 @@ tr:last-child td {
   background: #eff6ff;
 }
 
+/* Drag handle — PC에서는 숨김 */
+.drag-handle {
+  display: none;
+}
+
 /* Responsive */
 @media (max-width: 820px) {
   #app {
@@ -723,6 +728,26 @@ tr:last-child td {
     padding-bottom: 40px;
   }
 
+  /* 드래그 핸들 */
+  .drag-handle {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px 0 6px;
+    touch-action: none;
+    flex-shrink: 0;
+    cursor: grab;
+    background: var(--panel);
+  }
+
+  .drag-handle::after {
+    content: '';
+    width: 40px;
+    height: 4px;
+    background: #d1d5db;
+    border-radius: 2px;
+  }
+
   /* Sidebar closed (mobile) */
   #app.sidebar-closed {
     grid-template-rows: 100vh 0;
@@ -736,5 +761,18 @@ tr:last-child td {
     height: 0;
     width: auto;
     overflow: hidden;
+  }
+
+  /* Sidebar expanded (mobile) — 플래너 전체화면 */
+  #app.sidebar-expanded {
+    grid-template-rows: 0 100vh;
+  }
+
+  #app.sidebar-expanded #map-container {
+    overflow: hidden;
+  }
+
+  #app.sidebar-expanded #sidebar {
+    height: 100vh;
   }
 }

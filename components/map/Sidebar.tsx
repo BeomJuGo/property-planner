@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
 import { AuthUser } from '@/lib/types';
@@ -12,6 +13,8 @@ import SettingsTab from './SettingsTab';
 interface Props {
   user: AuthUser;
   onClose: () => void;
+  onExpand: () => void;
+  onNormal: () => void;
 }
 
 const TABS = [
@@ -22,9 +25,12 @@ const TABS = [
   { id: 'settings' as const, label: '⚙️ 설정' },
 ];
 
-export default function Sidebar({ user, onClose }: Props) {
+export default function Sidebar({ user, onClose, onExpand, onNormal }: Props) {
   const { state, dispatch } = useApp();
   const router = useRouter();
+
+  const touchStartY = useRef(0);
+  const touchStartH = useRef(0);
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -32,8 +38,45 @@ export default function Sidebar({ user, onClose }: Props) {
     router.refresh();
   }
 
+  function onDragStart(e: React.TouchEvent) {
+    touchStartY.current = e.touches[0].clientY;
+    touchStartH.current = document.getElementById('sidebar')?.offsetHeight ?? 0;
+  }
+
+  function onDragMove(e: React.TouchEvent) {
+    const dy = touchStartY.current - e.touches[0].clientY;
+    const vh = window.innerHeight;
+    const newH = Math.max(0, Math.min(vh, touchStartH.current + dy));
+    const app = document.getElementById('app');
+    if (app) app.style.gridTemplateRows = `${vh - newH}px ${newH}px`;
+  }
+
+  function onDragEnd() {
+    const app = document.getElementById('app');
+    const currentH = document.getElementById('sidebar')?.offsetHeight ?? 0;
+    const vh = window.innerHeight;
+
+    if (app) app.style.gridTemplateRows = '';
+
+    if (currentH > vh * 0.7) {
+      onExpand();
+    } else if (currentH <= vh * 0.25) {
+      onClose();
+    } else {
+      onNormal();
+    }
+  }
+
   return (
     <aside id="sidebar">
+      {/* 모바일 드래그 핸들 */}
+      <div
+        className="drag-handle"
+        onTouchStart={onDragStart}
+        onTouchMove={onDragMove}
+        onTouchEnd={onDragEnd}
+      />
+
       <header id="hdr">
         <h1>🏠 매물 답사 플래너</h1>
         <p>주소 입력 → 지도 표시 → 역세권 판정 → 방문 계획 생성</p>
