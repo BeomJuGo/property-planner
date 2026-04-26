@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { buildPlanSync, TransportMode } from '@/lib/buildPlan';
 import { Property } from '@/lib/types';
-
-const STORAGE_KEY = 'property-planner:ai-plan';
+import { SavedAiPlan } from '@/app/(app)/map/page';
 
 const MODE_LABELS: Record<TransportMode, string> = {
   transit: '🚇 대중교통',
@@ -13,40 +12,33 @@ const MODE_LABELS: Record<TransportMode, string> = {
   walking: '🚶 도보',
 };
 
-export default function AiPlanTab({ active }: { active: boolean }) {
+interface Props {
+  active: boolean;
+  initialAiPlan: SavedAiPlan | null;
+}
+
+export default function AiPlanTab({ active, initialAiPlan }: Props) {
   const { state, dispatch } = useApp();
   const [surveyDays, setSurveyDays] = useState('2');
   const [departureName, setDepartureName] = useState('');
   const [destinationName, setDestinationName] = useState('');
   const [startTime, setStartTime] = useState('09:00');
-  const [transportMode, setTransportMode] = useState<TransportMode>('transit');
+  const [transportMode, setTransportMode] = useState<TransportMode>(initialAiPlan?.transportMode ?? 'transit');
   const [loading, setLoading] = useState(false);
-  const [plan, setPlan] = useState('');
+  const [plan, setPlan] = useState(initialAiPlan?.plan ?? '');
   const [error, setError] = useState('');
   const [routeShown, setRouteShown] = useState(false);
-  const [totalTime, setTotalTime] = useState<{ travel: number; visit: number } | null>(null);
-  const [visitOverrides, setVisitOverrides] = useState<Record<string, number>>({});
+  const [totalTime, setTotalTime] = useState<{ travel: number; visit: number } | null>(initialAiPlan?.totalTime ?? null);
+  const [visitOverrides, setVisitOverrides] = useState<Record<string, number>>(initialAiPlan?.visitOverrides ?? {});
 
-  // 새로고침 후 저장된 계획 복원
+  // SSR에서 받은 routeIds로 지도 경로 복원 (맵 준비되면 자동 렌더링)
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const saved = JSON.parse(raw);
-      if (saved.plan) setPlan(saved.plan);
-      if (saved.totalTime) setTotalTime(saved.totalTime);
-      if (saved.transportMode) setTransportMode(saved.transportMode);
-      if (saved.visitOverrides) setVisitOverrides(saved.visitOverrides);
-    } catch {}
+    if (initialAiPlan?.routeIds?.length) {
+      dispatch({ type: 'SET_PLAN_ROUTE', payload: initialAiPlan.routeIds });
+      setRouteShown(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // 계획이 생성/업데이트될 때마다 저장
-  useEffect(() => {
-    if (!plan) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ plan, totalTime, transportMode, visitOverrides }));
-    } catch {}
-  }, [plan, totalTime, transportMode, visitOverrides]);
 
   function getVisitMin(p: Property): number {
     return visitOverrides[p.id] ?? p.visitMin ?? state.settings.defaultVisitMin;
@@ -56,7 +48,7 @@ export default function AiPlanTab({ active }: { active: boolean }) {
     setVisitOverrides((prev) => ({ ...prev, [id]: val }));
   }
 
-  function calcRouteAndTime() {
+  function calcRouteAndTime(): { totalTime: { travel: number; visit: number }; routeIds: string[] } {
     const startPlace = state.places.find((p) => p.group === '출발지');
     const placesWithOverrides = state.places.map((p) => ({
       ...p,
@@ -73,11 +65,34 @@ export default function AiPlanTab({ active }: { active: boolean }) {
     );
     const travelMin = legs.filter((l) => l.type === 'move').reduce((s, l) => s + (l.minutes ?? 0), 0);
     const visitMin = legs.filter((l) => l.type === 'visit').reduce((s, l) => s + (l.visit ?? 0), 0);
-    setTotalTime({ travel: travelMin, visit: visitMin });
+    const tt = { travel: travelMin, visit: visitMin };
+    setTotalTime(tt);
 
     const routeIds = legs.filter((l) => l.type === 'visit' && l.place).map((l) => l.place!.id);
     dispatch({ type: 'SET_PLAN_ROUTE', payload: routeIds });
     setRouteShown(true);
+
+    return { totalTime: tt, routeIds };
+  }
+
+  async function savePlanToDb(
+    planText: string,
+    tt: { travel: number; visit: number },
+    routeIds: string[],
+  ) {
+    try {
+      await fetch('/api/ai-plan', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan: planText,
+          totalTime: tt,
+          transportMode,
+          visitOverrides,
+          routeIds,
+        }),
+      });
+    } catch {}
   }
 
   function toggleRoute() {
@@ -98,9 +113,11 @@ export default function AiPlanTab({ active }: { active: boolean }) {
     setError('');
     setPlan('');
     setTotalTime(null);
-    try { localStorage.removeItem(STORAGE_KEY); } catch {}
     dispatch({ type: 'SET_PLAN_ROUTE', payload: null });
     setRouteShown(false);
+
+    // 기존 저장 계획 삭제
+    fetch('/api/ai-plan', { method: 'DELETE' }).catch(() => {});
 
     const startPlace = state.places.find((p) => p.group === '출발지');
     const departure = { name: departureName || startPlace?.name || '미지정', lat: startPlace?.lat ?? 0, lng: startPlace?.lng ?? 0 };
@@ -144,8 +161,9 @@ export default function AiPlanTab({ active }: { active: boolean }) {
         setPlan(result);
       }
 
-      // 스트리밍 완료 후 경로·시간 계산
-      calcRouteAndTime();
+      // 경로·시간 계산 후 DB에 저장
+      const { totalTime: tt, routeIds } = calcRouteAndTime();
+      await savePlanToDb(result, tt, routeIds);
     } catch {
       setError('네트워크 오류가 발생했습니다.');
     } finally {

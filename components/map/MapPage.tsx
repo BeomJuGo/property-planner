@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { AppProvider } from '@/context/AppContext';
 import { Property, AuthUser, DistanceMatrix } from '@/lib/types';
+import { SavedAiPlan } from '@/app/(app)/map/page';
 import MapClient from './MapClient';
 import Sidebar from './Sidebar';
 import ToastContainer from './ToastContainer';
@@ -11,11 +12,12 @@ interface Props {
   user: AuthUser;
   initialProperties: Property[];
   initialMatrix: DistanceMatrix;
+  initialAiPlan: SavedAiPlan | null;
 }
 
 export type SidebarState = 'normal' | 'closed' | 'expanded';
 
-export default function MapPage({ user, initialProperties, initialMatrix }: Props) {
+export default function MapPage({ user, initialProperties, initialMatrix, initialAiPlan }: Props) {
   const [sidebarState, setSidebarState] = useState<SidebarState>('normal');
 
   function applyState(next: SidebarState) {
@@ -32,6 +34,7 @@ export default function MapPage({ user, initialProperties, initialMatrix }: Prop
       <div id="app" className={appClass}>
         <Sidebar
           user={user}
+          initialAiPlan={initialAiPlan}
           onClose={() => applyState('closed')}
           onExpand={() => applyState('expanded')}
           onNormal={() => applyState('normal')}

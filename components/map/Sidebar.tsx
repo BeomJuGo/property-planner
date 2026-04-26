@@ -4,6 +4,7 @@ import { useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
 import { AuthUser } from '@/lib/types';
+import { SavedAiPlan } from '@/app/(app)/map/page';
 import AddressTab from './AddressTab';
 import PlanTab from './PlanTab';
 import DistanceTab from './DistanceTab';
@@ -12,6 +13,7 @@ import SettingsTab from './SettingsTab';
 
 interface Props {
   user: AuthUser;
+  initialAiPlan: SavedAiPlan | null;
   onClose: () => void;
   onExpand: () => void;
   onNormal: () => void;
@@ -25,7 +27,7 @@ const TABS = [
   { id: 'settings' as const, label: '⚙️ 설정' },
 ];
 
-export default function Sidebar({ user, onClose, onExpand, onNormal }: Props) {
+export default function Sidebar({ user, initialAiPlan, onClose, onExpand, onNormal }: Props) {
   const { state, dispatch } = useApp();
   const router = useRouter();
   const dragHandleRef = useRef<HTMLDivElement>(null);
@@ -135,7 +137,7 @@ export default function Sidebar({ user, onClose, onExpand, onNormal }: Props) {
       <AddressTab active={state.activeTab === 'input'} />
       <PlanTab active={state.activeTab === 'plan'} />
       <DistanceTab active={state.activeTab === 'distances'} />
-      <AiPlanTab active={state.activeTab === 'aiplan'} />
+      <AiPlanTab active={state.activeTab === 'aiplan'} initialAiPlan={initialAiPlan} />
       <SettingsTab active={state.activeTab === 'settings'} />
     </aside>
   );

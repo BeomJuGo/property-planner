@@ -14,6 +14,7 @@ const PROTECTED_PREFIXES = [
   '/api/distances',
   '/api/plan',
   '/api/matrix',
+  '/api/ai-plan',
 ];
 
 export async function middleware(req: NextRequest) {
