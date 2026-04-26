@@ -74,7 +74,13 @@ async function fetchTransit(p: PairRequest): Promise<{ minutes: number; detail: 
   if (apiKey) {
     try {
       const url = `https://api.odsay.com/v1/api/searchPubTransPathT?SX=${p.fromLng}&SY=${p.fromLat}&EX=${p.toLng}&EY=${p.toLat}&OPT=0&apiKey=${encodeURIComponent(apiKey)}`;
-      const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      const res = await fetch(url, {
+        headers: {
+          'Referer': 'https://property-planner-nine.vercel.app/',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        },
+        signal: AbortSignal.timeout(6000),
+      });
       const json = await res.json();
       const first = json.result?.path?.[0];
       if (first?.info?.totalTime) {

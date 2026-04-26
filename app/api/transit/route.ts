@@ -10,7 +10,13 @@ export async function POST(req: NextRequest) {
   if (apiKey) {
     try {
       const url = `https://api.odsay.com/v1/api/searchPubTransPathT?SX=${fromLng}&SY=${fromLat}&EX=${toLng}&EY=${toLat}&OPT=0&apiKey=${encodeURIComponent(apiKey)}`;
-      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      const res = await fetch(url, {
+        headers: {
+          'Referer': 'https://property-planner-nine.vercel.app/',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        },
+        signal: AbortSignal.timeout(8000),
+      });
       const json = await res.json();
       const first = json.result?.path?.[0];
       if (first?.info?.totalTime) {
