@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
         signal: AbortSignal.timeout(8000),
       });
       const json = await res.json();
+      console.log('[TMAP transit]', res.status, JSON.stringify(json).slice(0, 400));
       const itinerary = json.metaData?.plan?.itineraries?.[0];
       if (itinerary?.duration != null) {
         const minutes = Math.round(itinerary.duration / 60);
